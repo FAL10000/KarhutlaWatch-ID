@@ -13,8 +13,6 @@ BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 
 load_dotenv(ROOT / ".env")
 
-MAP_KEY = os.environ["FIRMS_MAP_KEY"]
-
 
 def fetch_firms(
     source: str,
@@ -22,6 +20,8 @@ def fetch_firms(
     day_range: int = 1,
     date: str | None = None,
 ) -> pl.DataFrame:
+    MAP_KEY = os.environ["FIRMS_MAP_KEY"]
+
     url = f"{BASE_URL}/{MAP_KEY}/{source}/{area}/{day_range}"
 
     if date is not None:
