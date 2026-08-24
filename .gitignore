@@ -15,13 +15,13 @@ dist/
 
 # Notebooks
 .ipynb_checkpoints/
-notebooks/__marimo__/
 
 # Logs
 *.log
 
 # Local environment variants
 .env.*
+.env
 !.env.example
 
 # Python
@@ -32,14 +32,10 @@ __pycache__/
 .venv/
 venv/
 
-# Secrets
-.env
-.env.*
-!.env.example
-
 # IDE
 .idea/
 
 # Generated data
 data/raw/
 data/processed/
+data/boundaries/*.geojson
