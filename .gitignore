@@ -1,20 +1,45 @@
+# Test and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Linters and type checkers
+.ruff_cache/
+.mypy_cache/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Notebooks
+.ipynb_checkpoints/
+notebooks/__marimo__/
+
+# Logs
+*.log
+
+# Local environment variants
+.env.*
+!.env.example
+
 # Python
 __pycache__/
 *.py[cod]
 
-# Virtual environment
+# Virtual environments
 .venv/
 venv/
 
-# Environment secrets
+# Secrets
 .env
+.env.*
+!.env.example
 
-# PyCharm
+# IDE
 .idea/
 
-# Data
+# Generated data
 data/raw/
 data/processed/
-
-# OS
-.DS_Store
