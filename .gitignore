@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment secrets
+.env
+
+# PyCharm
+.idea/
+
+# Data
+data/raw/
+data/processed/
+
+# OS
+.DS_Store
