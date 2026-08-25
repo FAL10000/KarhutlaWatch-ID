@@ -635,39 +635,29 @@ def render_header(
     latest_date_may_be_partial: bool,
 ) -> None:
     """Render the dashboard identity and active scope."""
-    title_column, date_column = st.columns(
-        [3, 1], gap="large", vertical_alignment="center"
+    st.title("KarhutlaWatch Indonesia")
+    st.markdown(
+        "Satellite thermal-anomaly monitoring from NASA FIRMS VIIRS "
+        "NOAA-20 NRT. Hotspots are observations, not confirmed forest or "
+        "land-fire incidents."
     )
-
-    with title_column:
-        st.title("KarhutlaWatch Indonesia")
-        st.markdown(
-            "Monitor recent satellite-detected thermal activity across "
-            "Indonesia using NASA FIRMS VIIRS NOAA-20 near-real-time data."
-        )
+    st.caption(
+        f"Selected scope: {format_period(start_date, end_date)} · "
+        f"{selected_province} · Confidence: {selected_confidence} · "
+        f"Dataset through {format_date(latest_date)}"
+    )
+    if (
+        start_date <= latest_date <= end_date
+        and latest_date_may_be_partial
+    ):
         st.caption(
-            "A hotspot is a satellite thermal detection, not a confirmed "
-            "forest or land-fire incident."
+            f"Data status: {format_date(latest_date)} is the current UTC "
+            "acquisition day and may still be incomplete."
         )
-
-    with date_column:
-        with st.container(border=True):
-            st.caption("Active period")
-            st.subheader(format_period(start_date, end_date))
-            st.markdown(f"**{selected_province}**")
-            st.caption(f"Confidence: {selected_confidence}")
-            if start_date <= latest_date <= end_date:
-                st.badge(
-                    "Latest available data",
-                    icon=":material/update:",
-                    color="blue",
-                )
-                if latest_date_may_be_partial:
-                    st.caption("Current UTC day · may be incomplete")
 
 
 def render_metrics(filtered: pl.DataFrame) -> None:
-    """Render the headline indicators as responsive native cards."""
+    """Render the headline indicators as a responsive native row."""
     hotspot_count, high_confidence_count, total_frp, affected_kabkota = (
         calculate_kpis(filtered)
     )
@@ -677,23 +667,17 @@ def render_metrics(filtered: pl.DataFrame) -> None:
             "Satellite detections",
             hotspot_count,
             format="%,d",
-            icon=":material/sensors:",
-            border=True,
             help="Number of NASA FIRMS hotspot rows in the selected scope.",
         )
         st.metric(
-            "High-confidence detections",
+            "High confidence",
             high_confidence_count,
             format="%,d",
-            icon=":material/verified:",
-            border=True,
             help='Detections where the FIRMS confidence code is "h".',
         )
         st.metric(
             "Total FRP",
             f"{total_frp:,.0f} MW",
-            icon=":material/bolt:",
-            border=True,
             help=(
                 "Sum of Fire Radiative Power reported for detections in "
                 "the selected scope."
@@ -703,8 +687,6 @@ def render_metrics(filtered: pl.DataFrame) -> None:
             "Affected kabupaten/kota",
             affected_kabkota,
             format="%,d",
-            icon=":material/map:",
-            border=True,
             help="Distinct named kabupaten/kota with at least one detection.",
         )
 
@@ -718,21 +700,16 @@ def render_map(
     selected_confidence: str,
 ) -> None:
     """Render hotspot, density, or persistent-cluster views on a dark map."""
-    with st.container(border=True):
-        heading_column, mode_column = st.columns(
-            [2, 1], gap="large", vertical_alignment="bottom"
+    with st.container():
+        st.subheader("Hotspot activity map")
+        map_mode = st.segmented_control(
+            "Map display",
+            MAP_MODES,
+            default=COMBINED_MODE,
+            required=True,
+            width="content",
+            key="map_display",
         )
-        with heading_column:
-            st.subheader("Hotspot activity map")
-        with mode_column:
-            map_mode = st.segmented_control(
-                "Map display",
-                MAP_MODES,
-                default=COMBINED_MODE,
-                required=True,
-                width="stretch",
-                key="map_display",
-            )
 
         if map_mode == PERSISTENT_CLUSTERS_MODE:
             persistence_label = st.segmented_control(
@@ -755,11 +732,10 @@ def render_map(
                 selected_province,
             ).filter(pl.col("active_days") >= minimum_persistence)
             st.caption(
-                f"{persistent_clusters.height:,} persistent thermal-activity "
-                f"clusters observed during {format_period(start_date, end_date)} "
-                f"· {selected_province}. Each marker is one tracked cluster "
-                f"observed on at least {minimum_persistence} days. Precomputed "
-                "from all confidence levels."
+                f"{persistent_clusters.height:,} persistent tracked clusters "
+                "in the selected scope. One marker per cluster observed on at "
+                f"least {minimum_persistence} days; precomputed from all "
+                "confidence levels."
             )
             map_data = persistent_clusters
             empty_message = (
@@ -768,9 +744,9 @@ def render_map(
             )
         else:
             st.caption(
-                f"{filtered.height:,} individual detections during "
-                f"{format_period(start_date, end_date)} · "
-                f"{selected_province}. Confidence: {selected_confidence}."
+                f"{filtered.height:,} individual "
+                f"{confidence_detection_label(selected_confidence)} in the "
+                "selected scope."
             )
             map_data = filtered
             empty_message = (
@@ -779,10 +755,7 @@ def render_map(
             )
 
         if map_data.is_empty():
-            st.info(
-                empty_message,
-                icon=":material/info:",
-            )
+            st.info(empty_message)
             return
 
         layers: list[pdk.Layer] = []
@@ -873,24 +846,20 @@ def render_monitoring_priority(
     selected_province: str,
 ) -> None:
     """Render the latest fixed-window monitoring ranking as a compact table."""
-    with st.container(border=True):
+    with st.container():
         st.subheader("Areas requiring attention")
-        st.markdown(
-            f"**Monitoring priority · "
-            f"{format_period(monitoring_start_date, monitoring_end_date)}**"
-        )
         st.caption(
-            "Latest precomputed 7-day snapshot compared with the previous 7 "
-        )
-        st.caption(
-            "Monitoring priority is a relative indicator based on recent activity, FRP, persistence, and growth."
+            f"Fixed monitoring window: "
+            f"{format_period(monitoring_start_date, monitoring_end_date)}, "
+            "compared with the previous 7 days. Priority combines recent "
+            "activity, FRP, persistence, and growth; it is not a fire-risk or "
+            "severity score."
         )
 
         if ranking.is_empty():
             st.info(
                 f"No monitoring areas are available for {selected_province} "
-                "in this snapshot.",
-                icon=":material/info:",
+                "in this snapshot."
             )
             return
 
@@ -935,10 +904,6 @@ def render_monitoring_priority(
 
 def render_trend(
     trend: pl.DataFrame,
-    start_date: str,
-    end_date: str,
-    selected_province: str,
-    selected_confidence: str,
     latest_date: str,
     latest_date_may_be_partial: bool,
 ) -> None:
@@ -987,20 +952,15 @@ def render_trend(
         )
     )
 
-    with st.container(border=True):
+    with st.container():
         st.subheader("Daily hotspot trend")
-        trend_caption = (
-            f"Daily {confidence_detection_label(selected_confidence)} for "
-            f"{selected_province} during {format_period(start_date, end_date)}."
-        )
         chart = line
         if latest_date_may_be_partial and not latest_point.is_empty():
-            trend_caption += (
-                f" The current UTC day ({format_date(latest_date)}) is "
-                "highlighted and may still receive detections."
+            st.caption(
+                f"{format_date(latest_date)} is highlighted because the "
+                "current UTC acquisition day may still receive detections."
             )
             chart = line + latest_rule + latest_marker
-        st.caption(trend_caption)
         st.altair_chart(
             chart.properties(height=300),
             width="stretch",
@@ -1013,24 +973,21 @@ def render_ranking(
     selected_confidence: str,
 ) -> None:
     """Render the top-area ranking with friendly labels and formats."""
-    with st.container(border=True):
+    with st.container():
         st.subheader("Top kabupaten/kota")
         scope_note = (
-            "Province is shown to preserve geographic context."
+            " Province is retained for geographic context."
             if selected_province == ALL_INDONESIA
-            else f"Ranking within {selected_province}."
+            else ""
         )
         st.caption(
-            f"Top 10 areas by {confidence_detection_label(selected_confidence)} "
-            "during the selected period. "
+            f"Highest {confidence_detection_label(selected_confidence)} in "
+            "the selected period, ranked by detection count."
             + scope_note
         )
 
         if ranking.is_empty():
-            st.info(
-                "No named kabupaten/kota are available for this selection.",
-                icon=":material/info:",
-            )
+            st.info("No named kabupaten/kota are available for this selection.")
             return
 
         st.dataframe(
@@ -1065,10 +1022,7 @@ def render_ranking(
 
 def render_methodology(latest_acquisition: datetime) -> None:
     """Keep data-source and interpretation guidance available but secondary."""
-    with st.expander(
-        "Data source and methodology",
-        icon=":material/info:",
-    ):
+    with st.expander("Data source and methodology"):
         st.markdown(
             """
 - **Source:** NASA FIRMS, using VIIRS NOAA-20 near-real-time (NRT) active-fire and thermal-anomaly detections.
@@ -1097,8 +1051,7 @@ try:
 except FileNotFoundError as error:
     st.error(
         "Dashboard analytics files are missing. Rebuild or restore the committed "
-        "Parquet files under data/analytics.",
-        icon=":material/error:",
+        "Parquet files under data/analytics."
     )
     st.exception(error)
     st.stop()
@@ -1125,7 +1078,6 @@ monitoring_end_date = (
 
 with st.sidebar:
     st.header("Filters")
-    st.caption("Choose a monitoring period and geographic scope.")
     selected_period = st.segmented_control(
         "Period",
         [*PRESET_DAYS, CUSTOM_PERIOD],
@@ -1165,10 +1117,7 @@ with st.sidebar:
                 persist_state="session",
             )
             if not custom_range:
-                st.warning(
-                    "Select a start and end date.",
-                    icon=":material/date_range:",
-                )
+                st.warning("Select a start and end date.")
                 st.stop()
             custom_start = custom_range[0]
             custom_end = custom_range[-1]
@@ -1199,25 +1148,12 @@ with st.sidebar:
         f"Data coverage: {format_date(earliest_date)}–"
         f"{format_date(latest_date)}."
     )
-    if start_date <= latest_date <= end_date:
-        st.caption(
-            ":material/update: Latest available data: "
-            f"{format_date(latest_date)}."
-        )
-        if latest_date_may_be_partial:
-            st.caption(
-                ":material/schedule: The current UTC day may still receive "
-                "detections."
-            )
 
 selected_dates = [
     value for value in available_dates if start_date <= value <= end_date
 ]
 if not selected_dates:
-    st.warning(
-        "No analytics dates are available in the selected period.",
-        icon=":material/date_range:",
-    )
+    st.warning("No analytics dates are available in the selected period.")
     st.stop()
 
 confidence_code = CONFIDENCE_CODES[selected_confidence]
@@ -1269,10 +1205,6 @@ render_monitoring_priority(
 )
 render_trend(
     trend,
-    start_date,
-    end_date,
-    selected_province,
-    selected_confidence,
     latest_date,
     latest_date_may_be_partial,
 )
