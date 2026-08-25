@@ -4,7 +4,12 @@ on:
   workflow_dispatch:
 
   schedule:
+    # Refresh today's NRT snapshot every 3 hours
     - cron: "15 */3 * * *"
+      timezone: "Asia/Jakarta"
+
+    # Finalize the previous UTC acquisition day once each morning
+    - cron: "15 8 * * *"
       timezone: "Asia/Jakarta"
 
 permissions:
@@ -41,6 +46,15 @@ jobs:
 
       - name: Download administrative boundaries
         run: uv run python scripts/download_boundaries.py
+
+      - name: Finalize previous day
+        if: github.event_name == 'schedule' && github.event.schedule == '15 8 * * *'
+        run: |
+          YESTERDAY=$(date -u -d 'yesterday' +%F)
+
+          echo "Finalizing FIRMS data for $YESTERDAY"
+
+          uv run python -m karhutlawatch.refresh --date "$YESTERDAY"
 
       - name: Refresh analytics
         run: uv run python -m karhutlawatch.refresh
