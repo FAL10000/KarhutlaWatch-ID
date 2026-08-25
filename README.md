@@ -1,36 +1,61 @@
 # KarhutlaWatch Indonesia
 
-KarhutlaWatch is a Python-based dashboard for exploring satellite-detected fire hotspots across Indonesia.
+KarhutlaWatch is an interactive monitoring dashboard for satellite-detected thermal anomalies across Indonesia.
 
-The project retrieves active fire detections from **NASA FIRMS**, filters them to Indonesian territory, assigns each detection to its province and kabupaten/kota, and presents recent hotspot activity through an interactive Streamlit dashboard.
+It retrieves near-real-time hotspot detections from **NASA FIRMS VIIRS NOAA-20**, filters them to Indonesian territory, assigns administrative regions, tracks repeated hotspot activity across days, and presents the results through a public Streamlit dashboard.
 
-> **Status:** Early MVP. The current dashboard uses a 30-day snapshot of NOAA-20 VIIRS hotspot detections.
+**Live app:** https://karhutlawatch-id.streamlit.app/
+
+> KarhutlaWatch is a monitoring and exploratory analytics project. A satellite hotspot or tracked cluster is not the same as a confirmed forest-fire incident or measured burned area.
 
 ## Features
 
-- Retrieve hotspot detections from the NASA FIRMS API
-- Filter detections to Indonesia using administrative boundaries
-- Assign province and kabupaten/kota using spatial joins
-- Store intermediate datasets as Parquet
-- Aggregate daily hotspot activity by administrative area
-- Track:
-  - hotspot count
-  - high-confidence detections
-  - total Fire Radiative Power (FRP)
-  - maximum FRP
-- Interactive Streamlit dashboard with:
-  - date filtering
-  - province filtering
-  - hotspot map
-  - 30-day trend
-  - top kabupaten/kota ranking
+### Hotspot monitoring
 
-## Data Pipeline
+- Rolling 30-day NASA FIRMS dataset
+- Province and kabupaten/kota filtering
+- Confidence-level filtering
+- Single-date and date-range analysis
+- Individual hotspot map
+- Hotspot-density map
+- Combined hotspot + density view
+- Daily hotspot trends
+- Kabupaten/kota activity rankings
+- Fire Radiative Power (FRP) metrics
+
+### Persistent activity
+
+KarhutlaWatch groups spatially nearby FIRMS detections and tracks those groups across consecutive days.
+
+This makes it possible to distinguish:
+
+- isolated thermal detections
+- repeatedly observed thermal activity
+- long-running hotspot clusters
+
+Persistent clusters are analytical monitoring features and are **not confirmed individual fires**.
+
+### Monitoring priority
+
+The dashboard also provides a rolling monitoring-priority ranking by kabupaten/kota.
+
+The score combines:
+
+- 35% recent detection activity
+- 25% Fire Radiative Power
+- 25% hotspot persistence
+- 15% positive activity growth
+
+The score is relative to other monitored areas and should not be interpreted as an official fire-risk, severity, or emergency classification.
+
+## Architecture
 
 ```text
 NASA FIRMS
     ↓
-Raw hotspot detections
+FIRMS Area API
+    ↓
+Raw detections
     ↓
 Polars transformation
     ↓
@@ -38,51 +63,162 @@ Point geometry
     ↓
 geoBoundaries ADM1 / ADM2 spatial join
     ↓
-Indonesia hotspot dataset
+Indonesia-only hotspot data
     ↓
-Daily aggregations
+Rolling 30-day dataset
+    ↓
+Daily administrative aggregations
+    ↓
+DBSCAN hotspot clustering
+    ↓
+Cross-day cluster tracking
+    ↓
+Monitoring-priority analytics
     ↓
 Streamlit dashboard
 ```
 
+## Automated Data Refresh
+
+KarhutlaWatch is refreshed automatically with GitHub Actions.
+
+```text
+Every 3 hours
+    ↓
+Download latest NASA FIRMS NRT data
+    ↓
+Replace the current UTC day's snapshot
+    ↓
+Keep latest 30 acquisition dates
+    ↓
+Rebuild administrative summaries
+    ↓
+Rebuild hotspot clusters
+    ↓
+Rebuild monitoring-priority dataset
+    ↓
+Publish latest analytics
+    ↓
+Streamlit displays updated data
+```
+
+The current UTC acquisition day is refreshed repeatedly because NASA FIRMS near-real-time data can still be incomplete while the day is in progress.
+
+Once each morning, the workflow also retrieves the previous UTC acquisition day again to replace its earlier near-real-time snapshot with a later version.
+
+Monitoring-priority comparisons use only completed acquisition days. This avoids comparing a partial current day against a complete historical period.
+
+## Data Products
+
+KarhutlaWatch generates five analytical datasets:
+
+```text
+firms_30d.parquet
+    Individual FIRMS detections for the rolling 30-day window
+
+daily_province.parquet
+    Daily hotspot metrics by province
+
+daily_kabupaten_kota.parquet
+    Daily hotspot metrics by kabupaten/kota
+
+hotspot_clusters.parquet
+    Spatial hotspot clusters tracked across days
+
+monitoring_areas.parquet
+    Latest completed 7-day monitoring snapshot by kabupaten/kota
+```
+
 ## Tech Stack
 
-- Python
-- Polars
-- polars-st
-- Streamlit
-- NASA FIRMS API
-- geoBoundaries
-- Parquet
-- uv
+| Technology | Purpose |
+|---|---|
+| Python | Application and data pipeline |
+| Polars | Data transformation and aggregation |
+| polars-st | Spatial geometry and administrative joins |
+| NumPy | Numerical data preparation |
+| scikit-learn | DBSCAN hotspot clustering |
+| Streamlit | Public interactive dashboard |
+| PyDeck | Interactive geographic visualization |
+| Altair | Dashboard charts |
+| Parquet | Compact analytical storage |
+| requests | NASA FIRMS and boundary downloads |
+| uv | Dependency and Python environment management |
+| GitHub Actions | Scheduled automated data refresh |
+| Streamlit Community Cloud | Public application hosting |
+
+## Data Sources
+
+### NASA FIRMS
+
+**Fire Information for Resource Management System**
+
+Current satellite product:
+
+- VIIRS
+- NOAA-20
+- Near Real-Time (NRT)
+
+Used for:
+
+- hotspot coordinates
+- acquisition date/time
+- detection confidence
+- Fire Radiative Power (FRP)
+- thermal anomaly monitoring
+
+https://firms.modaps.eosdis.nasa.gov/
+
+### geoBoundaries
+
+KarhutlaWatch uses the `gbOpen` Indonesia administrative boundaries.
+
+Used for:
+
+- filtering detections to Indonesian territory
+- assigning province (ADM1)
+- assigning kabupaten/kota (ADM2)
+
+https://www.geoboundaries.org/
+
+geoBoundaries `gbOpen` data is distributed under CC BY 4.0.
 
 ## Project Structure
 
 ```text
 KarhutlaWatch-ID/
+├── .github/
+│   └── workflows/
+│       └── refresh.yml
+│
 ├── data/
 │   ├── analytics/
 │   ├── boundaries/
 │   ├── processed/
 │   └── raw/
+│
 ├── scripts/
 │   └── download_boundaries.py
+│
 ├── src/
 │   └── karhutlawatch/
 │       ├── aggregate.py
 │       ├── app.py
 │       ├── firms.py
+│       ├── monitoring.py
 │       ├── pipeline.py
+│       ├── refresh.py
 │       └── transform.py
+│
 ├── notebooks/
 ├── tests/
 ├── pyproject.toml
 └── uv.lock
 ```
 
-Raw, processed, and boundary datasets are not stored in the repository. The analytics datasets required by the current dashboard are included.
+Raw, processed, and large administrative-boundary files are intentionally excluded from Git.
 
-## Setup
+## Local Setup
 
 Clone the repository:
 
@@ -97,43 +233,41 @@ Install dependencies:
 uv sync
 ```
 
-For FIRMS ingestion, create a `.env` file:
+Create:
+
+```text
+.env
+```
+
+with:
 
 ```env
 FIRMS_MAP_KEY=your_nasa_firms_map_key
 ```
 
-A NASA FIRMS MAP_KEY can be obtained from the NASA FIRMS API website.
+## Administrative Boundaries
 
-## Download Administrative Boundaries
-
-The transformation pipeline uses Indonesian ADM1 and ADM2 boundaries from geoBoundaries.
-
-Download them with:
+Download the required Indonesia ADM1 and ADM2 boundaries:
 
 ```bash
 uv run python scripts/download_boundaries.py
 ```
 
-This creates the required GeoJSON files under:
+## Refresh the Dataset
 
-```text
-data/boundaries/
-```
-
-## Run the Data Pipeline
-
-Run a FIRMS ingestion and transformation:
+A complete rolling refresh can be run with:
 
 ```bash
-uv run python -m karhutlawatch.pipeline
+uv run python -m karhutlawatch.refresh
 ```
 
-Build the analytical datasets:
+A particular acquisition date can be replaced with:
 
 ```bash
-uv run python -m karhutlawatch.aggregate
+uv run python -m karhutlawatch.refresh --date YYYY-MM-DD
 ```
+
+The refresh pipeline is designed to replace an existing date rather than duplicate it.
 
 ## Run the Dashboard
 
@@ -141,57 +275,71 @@ uv run python -m karhutlawatch.aggregate
 uv run streamlit run src/karhutlawatch/app.py
 ```
 
-The dashboard will normally be available at:
+The local app will normally be available at:
 
 ```text
 http://localhost:8501
 ```
 
-## Data Sources
+## Methodology Notes
 
-### NASA FIRMS
+### Hotspot
 
-Active fire and thermal anomaly detections are retrieved from the NASA Fire Information for Resource Management System (FIRMS).
+A hotspot is a satellite-detected thermal anomaly reported by NASA FIRMS.
 
-Current MVP data source:
+It does not necessarily represent a confirmed forest or land fire.
 
-- VIIRS
-- NOAA-20
-- Near Real-Time (NRT)
+### Fire Radiative Power
 
-https://firms.modaps.eosdis.nasa.gov/
+FRP represents the rate of radiant energy emitted by a detected thermal anomaly and is reported in megawatts.
 
-### geoBoundaries
+It is useful for comparing thermal activity but is not the same as burned area.
 
-Administrative boundaries are retrieved from the geoBoundaries `gbOpen` dataset.
+### Persistent Cluster
 
-https://www.geoboundaries.org/
+Daily hotspots located within approximately 5 km are grouped using DBSCAN.
 
-geoBoundaries `gbOpen` data is distributed under the CC BY 4.0 license.
+Nearby daily clusters are then associated across days using a distance-based tracking heuristic.
 
-## Important Note
+A tracked cluster observed on at least two distinct days is considered persistent.
 
-A FIRMS hotspot represents a satellite-detected thermal anomaly. It does **not necessarily mean that a forest or land fire has been independently confirmed**.
+These parameters are analytical heuristics and are not official NASA fire-event definitions.
 
-Hotspot counts should therefore be interpreted as indicators of detected thermal activity rather than confirmed fire incidents.
+### Incomplete Data
 
-Near-real-time data for the current day may also be incomplete because additional satellite observations can arrive later.
+The latest UTC acquisition day may be incomplete because additional satellite observations can arrive later.
 
-## Roadmap
+Live hotspot views may include this partial day.
 
-Planned improvements include:
+Monitoring-priority comparisons intentionally use completed acquisition days only.
 
-- Automated daily FIRMS updates
-- Rolling 30-day dataset generation
-- Improved hotspot mapping and tooltips
-- Hotspot persistence detection
-- Historical and seasonal analysis
-- Weather context from BMKG
-- Fire-risk / escalation indicators
-- Public Streamlit deployment
+## Current Limitations
+
+- Satellite hotspots are not confirmed fire incidents
+- Cluster boundaries do not represent burned area
+- Monitoring priority is not an official risk or severity score
+- Only NOAA-20 VIIRS NRT is currently used
+- Current analysis covers a rolling 30-day period
+- Weather conditions are not yet incorporated
+- Cluster tracking uses heuristic distance thresholds
+
+## Possible Future Work
+
+- BMKG weather context
+- rainfall, humidity, and wind overlays
+- seasonal and historical baselines
+- peatland / land-cover context
+- smoke and air-quality indicators
+- alerts for rapidly increasing persistent activity
 
 ## License
 
-Project license to be determined.
+The source code in this repository is licensed under the [MIT License](LICENSE).
 
-Data remains subject to the terms and licenses of its respective providers.
+Data and third-party materials are not covered by the MIT License:
+
+- NASA FIRMS / VIIRS NOAA-20 data remain subject to the applicable NASA Earthdata and FIRMS data-use and citation guidance. NASA FIRMS should be acknowledged as the data source.
+- geoBoundaries `gbOpen` administrative boundaries are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and require attribution.
+- Derived analytics files retain any applicable source-data terms and attribution requirements.
+
+This project is independent and is not endorsed by NASA, NOAA, or geoBoundaries.
