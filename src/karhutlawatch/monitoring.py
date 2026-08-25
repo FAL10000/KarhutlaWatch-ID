@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 
@@ -289,15 +289,28 @@ def build_monitoring_areas(
     firms: pl.DataFrame,
     clusters: pl.DataFrame,
 ) -> pl.DataFrame:
-    reference_date = (
+    latest_data_date = (
         firms
         .select(pl.col("acq_date").max())
         .item()
     )
 
+    today_utc = datetime.now(timezone.utc).date()
+    latest_complete_date = today_utc - timedelta(days=1)
+
+    reference_date = min(
+        latest_data_date,
+        latest_complete_date,
+    )
+
     reference_time = (
         firms
-        .select(pl.col("acquired_at_utc").max())
+        .filter(
+            pl.col("acq_date") <= reference_date
+        )
+        .select(
+            pl.col("acquired_at_utc").max()
+        )
         .item()
     )
 
