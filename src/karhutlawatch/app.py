@@ -71,7 +71,7 @@ st.set_page_config(
 )
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def load_data() -> tuple[
     pl.DataFrame,
     pl.DataFrame,
