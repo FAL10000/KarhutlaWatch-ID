@@ -322,6 +322,8 @@ Monitoring-priority comparisons intentionally use completed acquisition days onl
 - Current analysis covers a rolling 30-day period
 - Weather conditions are not yet incorporated
 - Cluster tracking uses heuristic distance thresholds
+- Satellite revisit timing is not yet explicitly modeled, NOAA-20/VIIRS does not observe all of Indonesia continuously
+- A refresh does not necessarily mean a newer acquisition timestamp
 
 ## Possible Future Work
 
