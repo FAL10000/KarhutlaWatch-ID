@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 
 import requests
 
@@ -13,6 +14,47 @@ BOUNDARIES = {
     "ADM2": "geoBoundaries-IDN-ADM2-districts.geojson",
 }
 
+RETRY_DELAYS = [5, 15, 30]
+
+
+def get_with_retry(url: str, timeout: int) -> requests.Response:
+    for attempt in range(4):
+        try:
+            response = requests.get(url, timeout=timeout)
+
+            if response.status_code == 429 or response.status_code >= 500:
+                response.raise_for_status()
+
+            response.raise_for_status()
+            return response
+
+        except (requests.ConnectionError, requests.Timeout) as error:
+            if attempt == 3:
+                raise
+
+            delay = RETRY_DELAYS[attempt]
+            print(
+                f"Request failed ({type(error).__name__}). "
+                f"Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+
+        except requests.HTTPError as error:
+            status = error.response.status_code
+
+            if status != 429 and status < 500:
+                raise
+
+            if attempt == 3:
+                raise
+
+            delay = RETRY_DELAYS[attempt]
+            print(
+                f"HTTP {status}. Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+
+    raise RuntimeError("Request failed after retries.")
 
 def download_boundary(
     admin_level: str,
@@ -20,7 +62,7 @@ def download_boundary(
 ) -> Path:
     metadata_url = f"{API_BASE}/{admin_level}/"
 
-    response = requests.get(metadata_url, timeout=30)
+    response = get_with_retry(metadata_url, timeout=30)
     response.raise_for_status()
 
     metadata = response.json()
@@ -28,7 +70,7 @@ def download_boundary(
 
     print(f"Downloading {admin_level}...")
 
-    response = requests.get(download_url, timeout=120)
+    response = get_with_retry(download_url, timeout=120)
     response.raise_for_status()
 
     output_path = OUTPUT_DIR / filename

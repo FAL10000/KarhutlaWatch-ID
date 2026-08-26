@@ -1,6 +1,7 @@
 import os
 from io import BytesIO
 from pathlib import Path
+import time
 
 import polars as pl
 import requests
@@ -13,6 +14,47 @@ BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 
 load_dotenv(ROOT / ".env")
 
+RETRY_DELAYS = [5, 15, 30]
+
+
+def get_with_retry(url: str, timeout: int) -> requests.Response:
+    for attempt in range(4):
+        try:
+            response = requests.get(url, timeout=timeout)
+
+            if response.status_code == 429 or response.status_code >= 500:
+                response.raise_for_status()
+
+            response.raise_for_status()
+            return response
+
+        except (requests.ConnectionError, requests.Timeout) as error:
+            if attempt == 3:
+                raise
+
+            delay = RETRY_DELAYS[attempt]
+            print(
+                f"Request failed ({type(error).__name__}). "
+                f"Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+
+        except requests.HTTPError as error:
+            status = error.response.status_code
+
+            if status != 429 and status < 500:
+                raise
+
+            if attempt == 3:
+                raise
+
+            delay = RETRY_DELAYS[attempt]
+            print(
+                f"HTTP {status}. Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+
+    raise RuntimeError("Request failed after retries.")
 
 def fetch_firms(
     source: str,
@@ -27,7 +69,7 @@ def fetch_firms(
     if date is not None:
         url += f"/{date}"
 
-    response = requests.get(url, timeout=30)
+    response = get_with_retry(url, timeout=30)
     response.raise_for_status()
 
     return pl.read_csv(BytesIO(response.content))
