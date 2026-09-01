@@ -461,8 +461,8 @@ def build_monitoring_areas(
         )
         .with_columns(
             (
-                pl.col("recent_detection_count")
-                - pl.col("previous_detection_count")
+                pl.col("recent_detection_count").cast(pl.Int64)
+                - pl.col("previous_detection_count").cast(pl.Int64)
             )
             .alias("detection_change"),
 
