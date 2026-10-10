@@ -1,3 +1,7 @@
+import io
+
+from karhutlawatch.release_data import FILES, download_snapshot
+
 import math
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -79,13 +83,11 @@ def load_data() -> tuple[
     pl.DataFrame,
     pl.DataFrame,
 ]:
-    """Load the committed analytics datasets used by the dashboard."""
-    firms = pl.read_parquet(FIRMS_PATH)
-    province = pl.read_parquet(PROVINCE_PATH)
-    kabkota = pl.read_parquet(KABKOTA_PATH)
-    clusters = pl.read_parquet(CLUSTERS_PATH)
-    monitoring = pl.read_parquet(MONITORING_PATH)
-    return firms, province, kabkota, clusters, monitoring
+    datasets = download_snapshot()
+    return tuple(
+        pl.read_parquet(io.BytesIO(datasets[name]))
+        for name in FILES
+    )
 
 
 def format_date(value: str) -> str:
@@ -1048,12 +1050,11 @@ try:
         clusters,
         monitoring,
     ) = load_data()
-except FileNotFoundError as error:
+except RuntimeError:
     st.error(
-        "Dashboard analytics files are missing. Rebuild or restore the committed "
-        "Parquet files under data/analytics."
+        "Analytics data could not be loaded. "
+        "Please try again shortly."
     )
-    st.exception(error)
     st.stop()
 
 available_dates = firms.get_column("acq_date").unique().sort().to_list()

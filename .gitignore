@@ -39,3 +39,4 @@ venv/
 data/raw/
 data/processed/
 data/boundaries/*.geojson
+data/analytics/
