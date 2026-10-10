@@ -1,6 +1,7 @@
 import io
 
 from karhutlawatch.release_data import FILES, download_snapshot
+from karhutlawatch.map_theme import sync_map_theme
 
 import math
 from datetime import date, datetime, timezone
@@ -49,6 +50,8 @@ PERSISTENCE_MINIMUMS = {
     "7+ days": 7,
 }
 HOTSPOT_COLOR = [255, 139, 64, 170]
+LIGHT_HOTSPOT_COLOR = [194, 65, 12, 230]
+LIGHT_HOTSPOT_OUTLINE_COLOR = [255, 247, 237, 230]
 CLUSTER_OUTLINE_COLOR = [158, 229, 239, 225]
 HEATMAP_COLORS = [
     [69, 27, 22],
@@ -57,6 +60,12 @@ HEATMAP_COLORS = [
     [213, 72, 30],
     [240, 125, 45],
     [255, 205, 105],
+]
+LIGHT_HEATMAP_COLORS = [
+    [253, 186, 116],
+    [249, 115, 22],
+    [220, 38, 38],
+    [153, 27, 27],
 ]
 
 
@@ -568,26 +577,40 @@ def map_view(
     )
 
 
-def build_hotspot_layer(records: list[dict[str, object]]) -> pdk.Layer:
+def build_hotspot_layer(
+    records: list[dict[str, object]], *, light_theme: bool = False
+) -> pdk.Layer:
     """Build a small, individually inspectable FIRMS point layer."""
+    outline = (
+        {
+            "get_line_color": LIGHT_HOTSPOT_OUTLINE_COLOR,
+            "get_line_width": 0.75,
+            "line_width_units": "'pixels'",
+        }
+        if light_theme
+        else {}
+    )
     return pdk.Layer(
         "ScatterplotLayer",
         id="hotspot-points",
         data=records,
         get_position="[x, y]",
-        get_fill_color=HOTSPOT_COLOR,
+        get_fill_color=LIGHT_HOTSPOT_COLOR if light_theme else HOTSPOT_COLOR,
         get_radius=2,
         radius_units="'pixels'",
         radius_min_pixels=1,
         radius_max_pixels=4,
-        stroked=False,
+        stroked=light_theme,
         pickable=True,
         auto_highlight=True,
         highlight_color=[255, 235, 185, 230],
+        **outline,
     )
 
 
-def build_heatmap_layer(records: list[dict[str, float]]) -> pdk.Layer:
+def build_heatmap_layer(
+    records: list[dict[str, float]], *, light_theme: bool = False
+) -> pdk.Layer:
     """Build a transparent count-density layer below individual points."""
     return pdk.Layer(
         "HeatmapLayer",
@@ -599,8 +622,8 @@ def build_heatmap_layer(records: list[dict[str, float]]) -> pdk.Layer:
         radius_pixels=32,
         intensity=1,
         threshold=0.04,
-        color_range=HEATMAP_COLORS,
-        opacity=0.55,
+        color_range=LIGHT_HEATMAP_COLORS if light_theme else HEATMAP_COLORS,
+        opacity=0.4 if light_theme else 0.55,
         weights_texture_size=512,
         pickable=False,
     )
@@ -701,7 +724,8 @@ def render_map(
     selected_province: str,
     selected_confidence: str,
 ) -> None:
-    """Render hotspot, density, or persistent-cluster views on a dark map."""
+    """Render hotspot, density, or persistent-cluster views in the app theme."""
+    sync_map_theme()
     with st.container():
         st.subheader("Hotspot activity map")
         map_mode = st.segmented_control(
@@ -760,6 +784,7 @@ def render_map(
             st.info(empty_message)
             return
 
+        light_theme = st.context.theme.type == "light"
         layers: list[pdk.Layer] = []
         if map_mode == PERSISTENT_CLUSTERS_MODE:
             layers.append(
@@ -768,9 +793,17 @@ def render_map(
                 )
             )
         elif map_mode in (DENSITY_MODE, COMBINED_MODE):
-            layers.append(build_heatmap_layer(build_density_records(filtered)))
+            layers.append(
+                build_heatmap_layer(
+                    build_density_records(filtered), light_theme=light_theme
+                )
+            )
         if map_mode in (HOTSPOTS_MODE, COMBINED_MODE):
-            layers.append(build_hotspot_layer(build_hotspot_records(filtered)))
+            layers.append(
+                build_hotspot_layer(
+                    build_hotspot_records(filtered), light_theme=light_theme
+                )
+            )
 
         tooltip = None
         if map_mode == PERSISTENT_CLUSTERS_MODE:
@@ -818,7 +851,7 @@ def render_map(
             initial_view_state = map_view(filtered, selected_province)
 
         deck = pdk.Deck(
-            map_style=pdk.map_styles.CARTO_DARK,
+            map_style=None,
             map_provider="carto",
             initial_view_state=initial_view_state,
             layers=layers,
