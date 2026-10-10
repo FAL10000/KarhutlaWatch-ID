@@ -50,7 +50,8 @@ jobs:
         run: uv run python -m karhutlawatch.release_data download
 
       - name: Download administrative boundaries
-        run: uv run python scripts/download_boundaries.py
+        timeout-minutes: 5
+        run: uv run python -u scripts/download_boundaries.py
 
       - name: Finalize previous day
         if: github.event_name == 'schedule' && github.event.schedule == '15 8 * * *'

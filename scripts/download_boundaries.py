@@ -20,6 +20,10 @@ RETRY_DELAYS = [5, 15, 30]
 def get_with_retry(url: str, timeout: int) -> requests.Response:
     for attempt in range(4):
         try:
+            print(
+                f"GET {url} (attempt {attempt + 1}/4)",
+                flush=True,
+            )
             response = requests.get(url, timeout=timeout)
 
             if response.status_code == 429 or response.status_code >= 500:
